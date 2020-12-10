@@ -1,3 +1,5 @@
+from sklearn.neighbors import NearestNeighbors
+from scipy.sparse import csr_matrix
 import main
 import pandas as pd
 import numpy as np
@@ -47,4 +49,30 @@ combined = rating_popular_book.merge(
 us_canada_user_rating = combined[combined['Location'].str.contains(
     "usa|canada")]
 us_canada_user_rating = us_canada_user_rating.drop('Age', axis=1)
-us_canada_user_rating.head()
+
+
+us_canada_user_rating = us_canada_user_rating.drop_duplicates(
+    ['userID', 'bookTitle'])
+us_canada_user_rating_pivot = us_canada_user_rating.pivot(
+    index='bookTitle', columns='userID', values='bookRating').fillna(0)
+# convert to sparse matrix (CSR method)
+us_canada_user_rating_matrix = csr_matrix(us_canada_user_rating_pivot.values)
+
+# Implementing kNN
+
+model_knn = NearestNeighbors(metric='cosine', algorithm='brute')
+model_knn.fit(us_canada_user_rating_matrix)
+
+
+query_index = np.random.choice(us_canada_user_rating_pivot.shape[0])
+distances, indices = model_knn.kneighbors(
+    us_canada_user_rating_pivot.iloc[query_index, :].reshape(1, -1), n_neighbors=6)
+
+# Recommend sililar books:
+for i in range(0, len(distances.flatten())):
+    if i == 0:
+        print('Recommendations for {0}:\n'.format(
+            us_canada_user_rating_pivot.index[query_index]))
+    else:
+        print('{0}: {1}, with distance of {2}:'.format(
+            i, us_canada_user_rating_pivot.index[indices.flatten()[i]], distances.flatten()[i]))
